@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+
+{% block title %}Exceptions - Intelligent Document Processing{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Exceptions</h1>
+        
+        <!-- Filters Button -->
+        <button type="button" class="btn btn-outline-secondary" id="filters-btn">
+            <i class="bi bi-funnel me-1"></i> Filters
+        </button>
+    </div>
+    
+    <!-- Exceptions Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Document ID</th>
+                            <th>File Name</th>
+                            <th>Type</th>
+                            <th>Exception Type</th>
+                            <th>Batch ID</th>
+                            <th>Date Identified</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exceptions-table">
+                        <tr>
+                            <td colspan="7" class="text-center">Loading exceptions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <nav aria-label="Exceptions pagination" class="mt-3">
+                <ul class="pagination justify-content-center" id="pagination">
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
+                    </li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Exception Details Modal -->
+<div class="modal fade" id="exceptionDetailsModal" tabindex="-1" aria-labelledby="exceptionDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exceptionDetailsModalLabel">Exception Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="exception-details-content">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading exception details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="resolve-exception-btn">Resolve</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exception Resolution Modal -->
+<div class="modal fade" id="exceptionResolutionModal" tabindex="-1" aria-labelledby="exceptionResolutionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exceptionResolutionModalLabel">Resolve Exception</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="exception-message" class="alert alert-danger mb-3">
+                    <!-- Exception message will be displayed here -->
+                </div>
+                
+                <div id="resolution-form">
+                    <!-- Form fields will be generated dynamically based on the exception -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="submit-resolution-btn">Submit Correction</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global variables
+    let currentPage = 1;
+    const pageSize = 10;
+    let totalExceptions = 0;
+    let currentExceptionId = null;
+    
+    // DOM elements
+    const exceptionsTable = document.getElementById('exceptions-table');
+    const pagination = document.getElementById('pagination');
+    const filtersBtn = document.getElementById('filters-btn');
+    const resolveExceptionBtn = document.getElementById('resolve-exception-btn');
+    const submitResolutionBtn = document.getElementById('submit-resolution-btn');
+    
+    // Load exceptions when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        loadExceptions();
+    });
+    
+    // Event listeners
+    resolveExceptionBtn.addEventListener('click', () => {
+        showResolutionModal(currentExceptionId);
+    });
+    
+    submitResolutionBtn.addEventListener('click', () => {
+        submitResolution();
+    });
+    
+    // Functions
+    function loadExceptions(filters = {}) {
+        let url = `/api/exception/list?page=${currentPage}&size=${pageSize}`;
+        
+        // Add filters if provided
+        if (filters.type) url += `&type=${filters.type}`;
+        if (filters.exception_type) url += `&exception_type=${filters.exception_type}`;
+        if (filters.batch_id) url += `&batch_id=${filters.batch_id}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                displayExceptions(data);
+                updatePagination(data.length);
+            })
+            .catch(error => {
+                console.error('Error loading exceptions:', error);
+                exceptionsTable.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-danger">
+                            Error loading exceptions: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+    
+    function displayExceptions(exceptions) {
+        if (exceptions.length === 0) {
+            exceptionsTable.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center">
+                        No exceptions found
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        let html = '';
+        
+        exceptions.forEach(exception => {
+            const exceptionTypeClass = getExceptionTypeClass(exception.exception_type);
+            
+            html += `
+                <tr>
+                    <td>${exception.document_id}</td>
+                    <td>${exception.file_name}</td>
+                    <td>${exception.document_type}</td>
+                    <td><span class="badge ${exceptionTypeClass}">${exception.exception_type}</span></td>
+                    <td>${exception.batch_id || '-'}</td>
+                    <td>${formatDate(exception.date_identified)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1 details-btn" data-id="${exception.document_id}">
+                            <i class="bi bi-info-circle"></i> Details
+                        </button>
+                        <button class="btn btn-sm btn-primary resolve-btn" data-id="${exception.document_id}">
+                            <i class="bi bi-check2-circle"></i> Resolve
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        exceptionsTable.innerHTML = html;
+        
+        // Add event listeners to buttons
+        document.querySelectorAll('.details-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                viewExceptionDetails(btn.getAttribute('data-id'));
+            });
+        });
+        
+        document.querySelectorAll('.resolve-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                showResolutionModal(btn.getAttribute('data-id'));
+            });
+        });
+    }
+    
+    function getExceptionTypeClass(exceptionType) {
+        switch (exceptionType) {
+            case 'Missing Data':
+                return 'bg-warning text-dark';
+            case 'Validation Error':
+                return 'bg-danger';
+            case 'Format Issue':
+                return 'bg-info';
+            default:
+                return 'bg-secondary';
+        }
+    }
+    
+    function formatDate(dateString) {
+        if (!dateString) return '-';
+        
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function updatePagination(count) {
+        totalExceptions = count;
+        const totalPages = Math.ceil(totalExceptions / pageSize);
+        
+        if (totalPages <= 1) {
+            pagination.style.display = 'none';
+            return;
+        }
+        
+        pagination.style.display = 'flex';
+        
+        let html = `
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>
+            </li>
+        `;
+        
+        for (let i = 1; i <= totalPages; i++) {
+            html += `
+                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>
+            `;
+        }
+        
+        html += `
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>
+            </li>
+        `;
+        
+        pagination.innerHTML = html;
+        
+        // Add event listeners to pagination links
+        document.querySelectorAll('.page-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = parseInt(link.getAttribute('data-page'));
+                
+                if (page !== currentPage && page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    loadExceptions();
+                }
+            });
+        });
+    }
+    
+    function viewExceptionDetails(documentId) {
+        currentExceptionId = documentId;
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('exceptionDetailsModal'));
+        modal.show();
+        
+        // Load exception details
+        fetch(`/api/exception/${documentId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Display exception details
+                const content = document.getElementById('exception-details-content');
+                
+                let fieldsHtml = '';
+                for (const [key, value] of Object.entries(data.extracted_data)) {
+                    fieldsHtml += `
+                        <tr>
+                            <td>${key.replace(/_/g, ' ').toUpperCase()}</td>
+                            <td>${value || '<span class="text-muted">Not extracted</span>'}</td>
+                        </tr>
+                    `;
+                }
+                
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert ${getExceptionTypeClass(data.exception_type)}">
+                                <strong>${data.exception_type}:</strong> ${data.exception_message}
+                            </div>
+                            
+                            <h6>Document Information</h6>
+                            <p><strong>Document ID:</strong> ${data.document_id}</p>
+                            <p><strong>Document Type:</strong> ${data.document_type}</p>
+                            <p><strong>File Name:</strong> ${data.file_name}</p>
+                            <p><strong>Batch ID:</strong> ${data.batch_id || 'N/A'}</p>
+                            <p><strong>Date Identified:</strong> ${formatDate(data.date_identified)}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Extracted Data</h6>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Field</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${fieldsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Document Preview</h6>
+                    <div class="text-center">
+                        <img src="/api/document/${data.document_id}/preview" class="img-fluid border" alt="Document Preview" style="max-height: 400px;">
+                    </div>
+                `;
+            })
+            .catch(error => {
+                console.error('Error loading exception details:', error);
+                document.getElementById('exception-details-content').innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading exception details: ${error.message}
+                    </div>
+                `;
+            });
+    }
+    
+    function showResolutionModal(documentId) {
+        currentExceptionId = documentId;
+        
+        // Load exception details to determine what needs to be resolved
+        fetch(`/api/exception/${documentId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Set exception message
+                document.getElementById('exception-message').textContent = data.exception_message;
+                
+                // Generate form fields based on missing or invalid data
+                const form = document.getElementById('resolution-form');
+                
+                let fieldsHtml = '';
+                
+                // If missing policy number
+                if (data.exception_type === 'Missing Data' && data.exception_message.includes('policy')) {
+                    fieldsHtml += `
+                        <div class="mb-3">
+                            <label for="policy_number" class="form-label">Policy Number</label>
+                            <input type="text" class="form-control" id="policy_number" name="policy_number" required>
+                            <div class="form-text">Enter the correct policy number</div>
+                        </div>
+                    `;
+                }
+                
+                // If missing claim number
+                if (data.exception_type === 'Missing Data' && data.exception_message.includes('claim')) {
+                    fieldsHtml += `
+                        <div class="mb-3">
+                            <label for="claim_number" class="form-label">Claim Number</label>
+                            <input type="text" class="form-control" id="claim_number" name="claim_number" required>
+                            <div class="form-text">Enter the correct claim number</div>
+                        </div>
+                    `;
+                }
+                
+                // Add any other missing fields as needed
+                const commonFields = data.common_fields || ['policy_number', 'name', 'date', 'amount'];
+                
+                commonFields.forEach(field => {
+                    // Skip fields already added
+                    if (fieldsHtml.includes(`name="${field}"`)) {
+                        return;
+                    }
+                    
+                    const fieldValue = data.extracted_data[field] || '';
+                    const fieldLabel = field.replace(/_/g, ' ').toUpperCase();
+                    
+                    fieldsHtml += `
+                        <div class="mb-3">
+                            <label for="${field}" class="form-label">${fieldLabel}</label>
+                            <input type="${field === 'amount' ? 'number' : 'text'}" class="form-control" id="${field}" name="${field}" value="${fieldValue}">
+                        </div>
+                    `;
+                });
+                
+                form.innerHTML = fieldsHtml;
+                
+                // Show the resolution modal
+                const modal = new bootstrap.Modal(document.getElementById('exceptionResolutionModal'));
+                modal.show();
+            })
+            .catch(error => {
+                console.error('Error loading exception for resolution:', error);
+                alert(`Error loading exception details: ${error.message}`);
+            });
+    }
+    
+    function submitResolution() {
+        // Get form data
+        const form = document.getElementById('resolution-form');
+        const formData = {};
+        
+        form.querySelectorAll('input').forEach(input => {
+            formData[input.name] = input.value;
+        });
+        
+        // Submit correction
+        fetch(`/api/exception/${currentExceptionId}/resolve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                updated_data: formData
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide the resolution modal
+            const modal = document.getElementById('exceptionResolutionModal');
+            bootstrap.Modal.getInstance(modal).hide();
+            
+            // Show success message
+            alert('Exception resolved successfully!');
+            
+            // Reload exceptions
+            loadExceptions();
+        })
+        .catch(error => {
+            console.error('Error resolving exception:', error);
+            alert(`Error resolving exception: ${error.message}`);
+        });
+    }
+</script>
+{% endblock %}

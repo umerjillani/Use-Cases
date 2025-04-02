@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Management - Intelligent Document Processing{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Batch Management</h1>
+        
+        <!-- Filters & Create Batch -->
+        <div>
+            <button type="button" class="btn btn-outline-secondary me-2" id="filters-btn">
+                <i class="bi bi-funnel me-1"></i> Filters
+            </button>
+            <button type="button" class="btn btn-primary" id="create-batch-btn">
+                <i class="bi bi-plus-circle me-1"></i> Create Batch
+            </button>
+        </div>
+    </div>
+    
+    <!-- Batches Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Batch ID</th>
+                            <th>Total Documents</th>
+                            <th>Status</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Exceptions</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batches-table">
+                        <tr>
+                            <td colspan="7" class="text-center">Loading batches...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <nav aria-label="Batch pagination" class="mt-3">
+                <ul class="pagination justify-content-center" id="pagination">
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
+                    </li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Create Batch Modal -->
+<div class="modal fade" id="createBatchModal" tabindex="-1" aria-labelledby="createBatchModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createBatchModalLabel">Create New Batch</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-batch-form">
+                    <div class="mb-3">
+                        <label for="batch-name" class="form-label">Batch Name (Optional)</label>
+                        <input type="text" class="form-control" id="batch-name" placeholder="Leave blank for auto-generated name">
+                        <div class="form-text">You can create a custom batch name or use an auto-generated one.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submit-batch-btn">Create Batch</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Details Modal -->
+<div class="modal fade" id="batchDetailsModal" tabindex="-1" aria-labelledby="batchDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchDetailsModalLabel">Batch Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="batch-details-content">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading batch details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="process-batch-btn" style="display: none;">Process Batch</button>
+                <button type="button" class="btn btn-success" id="download-batch-btn">Download Results</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global variables
+    let currentPage = 1;
+    const pageSize = 10;
+    let totalBatches = 0;
+    let currentBatchId = null;
+    
+    // DOM elements
+    const batchesTable = document.getElementById('batches-table');
+    const pagination = document.getElementById('pagination');
+    const createBatchBtn = document.getElementById('create-batch-btn');
+    const submitBatchBtn = document.getElementById('submit-batch-btn');
+    const processBatchBtn = document.getElementById('process-batch-btn');
+    const downloadBatchBtn = document.getElementById('download-batch-btn');
+    
+    // Load batches when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        loadBatches();
+        
+        // Check if a batch ID is in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const batchId = urlParams.get('batch');
+        if (batchId) {
+            viewBatchDetails(batchId);
+        }
+    });
+    
+    // Event listeners
+    createBatchBtn.addEventListener('click', () => {
+        showCreateBatchModal();
+    });
+    
+    submitBatchBtn.addEventListener('click', () => {
+        createBatch();
+    });
+    
+    processBatchBtn.addEventListener('click', () => {
+        processBatch(currentBatchId);
+    });
+    
+    downloadBatchBtn.addEventListener('click', () => {
+        downloadBatch(currentBatchId);
+    });
+    
+    // Functions
+    function loadBatches(filters = {}) {
+        let url = `/api/batch/list?page=${currentPage}&size=${pageSize}`;
+        
+        // Add filters if provided
+        if (filters.status) url += `&status=${filters.status}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                displayBatches(data);
+                updatePagination(data.length);
+            })
+            .catch(error => {
+                console.error('Error loading batches:', error);
+                batchesTable.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-danger">
+                            Error loading batches: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+    
+    function displayBatches(batches) {
+        if (batches.length === 0) {
+            batchesTable.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center">
+                        No batches found
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        let html = '';
+        
+        batches.forEach(batch => {
+            const statusClass = getStatusClass(batch.status);
+            const exceptionBadge = getExceptionBadge(batch.exception_count);
+            
+            html += `
+                <tr>
+                    <td>${batch.batch_id}</td>
+                    <td>${batch.total_documents}</td>
+                    <td><span class="badge ${statusClass}">${batch.status}</span></td>
+                    <td>${formatDate(batch.start_date)}</td>
+                    <td>${formatDate(batch.end_date)}</td>
+                    <td>${exceptionBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1 view-btn" data-id="${batch.batch_id}">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                        <button class="btn btn-sm btn-primary details-btn" data-id="${batch.batch_id}">
+                            <i class="bi bi-info-circle"></i> Details
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        batchesTable.innerHTML = html;
+        
+        // Add event listeners to buttons
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                window.location.href = `/processed-documents?batch=${btn.getAttribute('data-id')}`;
+            });
+        });
+        
+        document.querySelectorAll('.details-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                viewBatchDetails(btn.getAttribute('data-id'));
+            });
+        });
+    }
+    
+    function getStatusClass(status) {
+        switch (status) {
+            case 'Complete':
+                return 'bg-success';
+            case 'Processing':
+                return 'bg-primary';
+            case 'Exceptions':
+                return 'bg-danger';
+            case 'Created':
+            case 'Updated':
+                return 'bg-warning text-dark';
+            default:
+                return 'bg-secondary';
+        }
+    }
+    
+    function getExceptionBadge(exceptionCount) {
+        if (!exceptionCount || exceptionCount === 0) {
+            return '<span class="badge bg-success">No Exceptions</span>';
+        }
+        
+        return `<span class="badge bg-danger">${exceptionCount} Exception${exceptionCount > 1 ? 's' : ''}</span>`;
+    }
+    
+    function formatDate(dateString) {
+        if (!dateString) return '-';
+        
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function updatePagination(count) {
+        totalBatches = count;
+        const totalPages = Math.ceil(totalBatches / pageSize);
+        
+        if (totalPages <= 1) {
+            pagination.style.display = 'none';
+            return;
+        }
+        
+        pagination.style.display = 'flex';
+        
+        let html = `
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>
+            </li>
+        `;
+        
+        for (let i = 1; i <= totalPages; i++) {
+            html += `
+                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>
+            `;
+        }
+        
+        html += `
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>
+            </li>
+        `;
+        
+        pagination.innerHTML = html;
+        
+        // Add event listeners to pagination links
+        document.querySelectorAll('.page-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = parseInt(link.getAttribute('data-page'));
+                
+                if (page !== currentPage && page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    loadBatches();
+                }
+            });
+        });
+    }
+    
+    function showCreateBatchModal() {
+        // Reset the form
+        document.getElementById('batch-name').value = '';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('createBatchModal'));
+        modal.show();
+    }
+    
+    function createBatch() {
+        const batchName = document.getElementById('batch-name').value.trim();
+        
+        fetch('/api/batch/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                batch_name: batchName || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide the modal
+            const modal = document.getElementById('createBatchModal');
+            bootstrap.Modal.getInstance(modal).hide();
+            
+            // Show success message
+            alert(`Batch ${data.batch_id} created successfully!`);
+            
+            // Reload batches
+            loadBatches();
+        })
+        .catch(error => {
+            console.error('Error creating batch:', error);
+            alert(`Error creating batch: ${error.message}`);
+        });
+    }
+    
+    function viewBatchDetails(batchId) {
+        currentBatchId = batchId;
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('batchDetailsModal'));
+        modal.show();
+        
+        // Update modal title
+        document.getElementById('batchDetailsModalLabel').textContent = `Batch Details: ${batchId}`;
+        
+        // Load batch details
+        fetch(`/api/batch/${batchId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Display batch details
+                const content = document.getElementById('batch-details-content');
+                
+                // Generate document type breakdown
+                let docTypeHtml = '';
+                if (data.document_types) {
+                    for (const [type, counts] of Object.entries(data.document_types)) {
+                        if (counts.total > 0) {
+                            docTypeHtml += `
+                                <tr>
+                                    <td>${type}</td>
+                                    <td>${counts.total}</td>
+                                    <td>${counts.processed}</td>
+                                    <td>${counts.failed}</td>
+                                </tr>
+                            `;
+                        }
+                    }
+                }
+                
+                if (!docTypeHtml) {
+                    docTypeHtml = `<tr><td colspan="4" class="text-center">No documents processed yet</td></tr>`;
+                }
+                
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Batch Information</h6>
+                            <p><strong>Batch ID:</strong> ${data.batch_id}</p>
+                            <p><strong>Created Date:</strong> ${formatDate(data.created_date)}</p>
+                            <p><strong>Status:</strong> <span class="badge ${getStatusClass(data.status)}">${data.status}</span></p>
+                            <p><strong>Total Documents:</strong> ${data.total_documents}</p>
+                            <p><strong>Processed:</strong> ${data.processed_count || 0}</p>
+                            <p><strong>Exceptions:</strong> ${data.exception_count || 0}</p>
+                            <p><strong>Started:</strong> ${formatDate(data.start_date)}</p>
+                            <p><strong>Completed:</strong> ${formatDate(data.end_date)}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Document Types</h6>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Total</th>
+                                        <th>Processed</th>
+                                        <th>Failed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${docTypeHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                
+                // Show/hide process button based on batch status
+                if (data.status === 'Created' || data.status === 'Updated') {
+                    processBatchBtn.style.display = 'block';
+                } else {
+                    processBatchBtn.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading batch details:', error);
+                document.getElementById('batch-details-content').innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading batch details: ${error.message}
+                    </div>
+                `;
+            });
+    }
+    
+    function processBatch(batchId) {
+        if (!confirm(`Are you sure you want to process batch ${batchId}?`)) {
+            return;
+        }
+        
+        // Update UI to show processing
+        const content = document.getElementById('batch-details-content');
+        content.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Processing batch...</span>
+                </div>
+                <p class="mt-2">Processing batch ${batchId}...</p>
+                <p class="text-muted">This may take a few minutes depending on the number of documents.</p>
+            </div>
+        `;
+        
+        // Disable process button
+        processBatchBtn.disabled = true;
+        
+        // Send process request
+        fetch(`/api/batch/${batchId}/process`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Re-enable process button
+            processBatchBtn.disabled = false;
+            
+            // Show success message
+            alert(`Batch ${batchId} processed successfully!`);
+            
+            // Reload batch details
+            viewBatchDetails(batchId);
+            
+            // Reload batches table
+            loadBatches();
+        })
+        .catch(error => {
+            console.error('Error processing batch:', error);
+            
+            // Re-enable process button
+            processBatchBtn.disabled = false;
+            
+            // Show error message
+            alert(`Error processing batch: ${error.message}`);
+            
+            // Reload batch details
+            viewBatchDetails(batchId);
+        });
+    }
+    
+    function downloadBatch(batchId) {
+        // Redirect to download endpoint
+        window.location.href = `/api/batch/${batchId}/download`;
+    }
+</script>
+{% endblock %}

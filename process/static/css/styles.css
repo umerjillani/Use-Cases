@@ -1,0 +1,165 @@
+/* Main styles for Intelligent Document Processing System */
+
+/* Body and general styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #f8f9fa;
+}
+
+main {
+    flex: 1;
+}
+
+/* Dashboard stats icons */
+.stats-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+}
+
+.bg-primary { background-color: #0d6efd; }
+.bg-success { background-color: #198754; }
+.bg-warning { background-color: #ffc107; }
+.bg-info { background-color: #0dcaf0; }
+.bg-danger { background-color: #dc3545; }
+
+/* Card styles */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: none;
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+/* Navigation active state */
+.navbar-nav .nav-link.active {
+    font-weight: bold;
+    border-bottom: 2px solid white;
+}
+
+/* Table styles */
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-completed { background-color: #d1e7dd; color: #0f5132; }
+.status-processing { background-color: #cff4fc; color: #055160; }
+.status-failed { background-color: #f8d7da; color: #842029; }
+.status-uploaded { background-color: #e2e3e5; color: #41464b; }
+
+.status-open { background-color: #fff3cd; color: #664d03; }
+.status-in_progress { background-color: #cff4fc; color: #055160; }
+.status-resolved { background-color: #d1e7dd; color: #0f5132; }
+
+/* Form styles */
+.form-label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.required::after {
+    content: "*";
+    color: #dc3545;
+    margin-left: 0.25rem;
+}
+
+/* File upload */
+.file-upload-container {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-upload-container:hover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.file-upload-container.dragover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Batch and document cards */
+.batch-card, .document-card {
+    transition: transform 0.2s ease;
+}
+
+.batch-card:hover, .document-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Loading spinner */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1050;
+}
+
+/* Document type icons */
+.document-type-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.icon-claim { color: #dc3545; }
+.icon-agency_services { color: #0d6efd; }
+.icon-cancellation { color: #ffc107; }
+.icon-mortgage_change { color: #198754; }
+.icon-payment { color: #0dcaf0; }
+.icon-unknown { color: #6c757d; }
+
+/* Exception severity indicators */
+.severity-info { border-left: 4px solid #0dcaf0; }
+.severity-warning { border-left: 4px solid #ffc107; }
+.severity-error { border-left: 4px solid #dc3545; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-title {
+        font-size: 1rem;
+    }
+    
+    .stats-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+}

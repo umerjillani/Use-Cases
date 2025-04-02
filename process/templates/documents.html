@@ -1,0 +1,925 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - Intelligent Document Processing System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Documents</h1>
+        <a href="{{ url_for('upload') }}" class="btn btn-primary">
+            <i class="bi bi-upload me-2"></i> Upload New Document
+        </a>
+    </div>
+    
+    <!-- Filters and Search -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="filter-form" class="row g-3">
+                <div class="col-md-3">
+                    <label for="documentType" class="form-label">Document Type</label>
+                    <select class="form-select" id="documentType" name="document_type">
+                        <option value="">All Types</option>
+                        <option value="claim">Insurance Claim</option>
+                        <option value="agency_services">Agency Services</option>
+                        <option value="cancellation">Policy Cancellation</option>
+                        <option value="mortgage_change">Mortgage Change</option>
+                        <option value="payment">Payment</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">All Statuses</option>
+                        <option value="uploaded">Uploaded</option>
+                        <option value="processing">Processing</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="isValid" class="form-label">Validation</label>
+                    <select class="form-select" id="isValid" name="is_valid">
+                        <option value="">All Documents</option>
+                        <option value="true">Valid</option>
+                        <option value="false">Invalid</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="search" class="form-label">Search</label>
+                    <input type="text" class="form-control" id="search" name="search" placeholder="Search by filename...">
+                </div>
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary me-2">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" id="reset-filters">Reset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Document List -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Document List</h5>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="refresh-btn">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="batch-btn" disabled>
+                        <i class="bi bi-collection"></i> Create Batch
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0" id="document-container">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="select-all">
+                                </div>
+                            </th>
+                            <th>ID</th>
+                            <th>Filename</th>
+                            <th>Document Type</th>
+                            <th>Status</th>
+                            <th>Validation</th>
+                            <th>Upload Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="document-list">
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading documents...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span id="showing-text">Showing 0 documents</span>
+                </div>
+                <nav aria-label="Document pagination">
+                    <ul class="pagination mb-0" id="pagination">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Detail Modal -->
+<div class="modal fade" id="documentModal" tabindex="-1" aria-labelledby="documentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="documentModalLabel">Document Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Document Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <th>ID:</th>
+                                <td id="modal-document-id"></td>
+                            </tr>
+                            <tr>
+                                <th>Filename:</th>
+                                <td id="modal-filename"></td>
+                            </tr>
+                            <tr>
+                                <th>Type:</th>
+                                <td id="modal-document-type"></td>
+                            </tr>
+                            <tr>
+                                <th>Status:</th>
+                                <td id="modal-status"></td>
+                            </tr>
+                            <tr>
+                                <th>Validation:</th>
+                                <td id="modal-validation"></td>
+                            </tr>
+                            <tr>
+                                <th>Confidence:</th>
+                                <td id="modal-confidence"></td>
+                            </tr>
+                            <tr>
+                                <th>Upload Date:</th>
+                                <td id="modal-upload-date"></td>
+                            </tr>
+                            <tr>
+                                <th>Processed Date:</th>
+                                <td id="modal-processed-date"></td>
+                            </tr>
+                            <tr>
+                                <th>Batch:</th>
+                                <td id="modal-batch"></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Extracted Data</h6>
+                        <div id="modal-extracted-data" class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+                            <pre><code>No data extracted</code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Exceptions</h6>
+                        <div id="modal-exceptions">
+                            <p class="text-center">No exceptions found</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="btn-group me-auto">
+                    <a href="#" class="btn btn-primary" id="modal-download-btn" target="_blank">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                    <button type="button" class="btn btn-success" id="modal-process-btn">
+                        <i class="bi bi-play"></i> Process
+                    </button>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Creation Modal -->
+<div class="modal fade" id="batchModal" tabindex="-1" aria-labelledby="batchModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchModalLabel">Create New Batch</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="batch-form">
+                    <div class="mb-3">
+                        <label for="batchName" class="form-label">Batch Name</label>
+                        <input type="text" class="form-control" id="batchName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Selected Documents</label>
+                        <ul class="list-group" id="selected-documents-list">
+                            <li class="list-group-item text-center">No documents selected</li>
+                        </ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="create-batch-btn">Create Batch</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global variables
+    let documents = [];
+    let currentPage = 1;
+    let pageSize = 10;
+    let totalDocuments = 0;
+    let selectedDocuments = [];
+    let documentModal = null;
+    let batchModal = null;
+
+    // Initialize page when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize modals
+        documentModal = new bootstrap.Modal(document.getElementById('documentModal'));
+        batchModal = new bootstrap.Modal(document.getElementById('batchModal'));
+        
+        // Load documents
+        loadDocuments();
+        
+        // Add event listeners
+        document.getElementById('filter-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            currentPage = 1;
+            loadDocuments();
+        });
+        
+        document.getElementById('reset-filters').addEventListener('click', function() {
+            document.getElementById('filter-form').reset();
+            currentPage = 1;
+            loadDocuments();
+        });
+        
+        document.getElementById('refresh-btn').addEventListener('click', function() {
+            loadDocuments();
+        });
+        
+        document.getElementById('select-all').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('#document-list input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+                const documentId = parseInt(checkbox.value);
+                
+                if (this.checked) {
+                    if (!selectedDocuments.includes(documentId)) {
+                        selectedDocuments.push(documentId);
+                    }
+                } else {
+                    selectedDocuments = selectedDocuments.filter(id => id !== documentId);
+                }
+            });
+            
+            updateBatchButton();
+        });
+        
+        document.getElementById('batch-btn').addEventListener('click', function() {
+            showBatchModal();
+        });
+        
+        document.getElementById('create-batch-btn').addEventListener('click', function() {
+            createBatch();
+        });
+    });
+    
+    // Load documents with filters
+    function loadDocuments() {
+        // Show loading
+        document.getElementById('document-list').innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading documents...</p>
+                </td>
+            </tr>
+        `;
+        
+        // Get filter values
+        const documentType = document.getElementById('documentType').value;
+        const status = document.getElementById('status').value;
+        const isValid = document.getElementById('isValid').value;
+        const search = document.getElementById('search').value;
+        
+        // Build query string
+        let queryParams = new URLSearchParams();
+        if (documentType) queryParams.append('document_type', documentType);
+        if (status) queryParams.append('status', status);
+        if (isValid) queryParams.append('is_valid', isValid);
+        if (search) queryParams.append('search', search);
+        queryParams.append('limit', pageSize);
+        queryParams.append('offset', (currentPage - 1) * pageSize);
+        
+        // Fetch documents
+        fetch(`/api/documents/?${queryParams.toString()}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch documents');
+                }
+                return response.json();
+            })
+            .then(data => {
+                displayDocuments(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('document-list').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="alert alert-danger" role="alert">
+                                Error loading documents: ${error.message}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+    
+    // Display documents in table
+    function displayDocuments(data) {
+        documents = data.documents || [];
+        totalDocuments = data.total || 0;
+        
+        const documentList = document.getElementById('document-list');
+        
+        if (documents.length === 0) {
+            documentList.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4">
+                        <p class="mb-0">No documents found</p>
+                        <a href="{{ url_for('upload') }}" class="btn btn-sm btn-primary mt-2">Upload New Document</a>
+                    </td>
+                </tr>
+            `;
+            document.getElementById('showing-text').textContent = 'Showing 0 documents';
+            updatePagination();
+            return;
+        }
+        
+        // Clear table
+        documentList.innerHTML = '';
+        
+        // Add rows
+        documents.forEach(doc => {
+            const statusClass = `status-${doc.status}`;
+            const validationBadge = doc.is_valid ? 
+                '<span class="badge bg-success">Valid</span>' : 
+                '<span class="badge bg-danger">Invalid</span>';
+            
+            const isSelected = selectedDocuments.includes(doc.id);
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input document-checkbox" type="checkbox" value="${doc.id}" ${isSelected ? 'checked' : ''}>
+                    </div>
+                </td>
+                <td>${doc.id}</td>
+                <td>${doc.filename}</td>
+                <td>${formatDocumentType(doc.document_type)}</td>
+                <td><span class="status-badge ${statusClass}">${doc.status}</span></td>
+                <td>${validationBadge}</td>
+                <td>${formatDate(doc.upload_date)}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-primary view-document" data-id="${doc.id}">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <a href="/api/documents/${doc.id}/download" class="btn btn-secondary" download>
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <button type="button" class="btn btn-danger delete-document" data-id="${doc.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            
+            documentList.appendChild(row);
+        });
+        
+        // Update showing text
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(start + documents.length - 1, totalDocuments);
+        document.getElementById('showing-text').textContent = `Showing ${start}-${end} of ${totalDocuments} documents`;
+        
+        // Update pagination
+        updatePagination();
+        
+        // Add event listeners
+        addDocumentEventListeners();
+    }
+    
+    // Add event listeners to document rows
+    function addDocumentEventListeners() {
+        // Document checkboxes
+        document.querySelectorAll('.document-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const documentId = parseInt(this.value);
+                
+                if (this.checked) {
+                    if (!selectedDocuments.includes(documentId)) {
+                        selectedDocuments.push(documentId);
+                    }
+                } else {
+                    selectedDocuments = selectedDocuments.filter(id => id !== documentId);
+                    document.getElementById('select-all').checked = false;
+                }
+                
+                updateBatchButton();
+            });
+        });
+        
+        // View document buttons
+        document.querySelectorAll('.view-document').forEach(button => {
+            button.addEventListener('click', function() {
+                const documentId = parseInt(this.getAttribute('data-id'));
+                showDocumentModal(documentId);
+            });
+        });
+        
+        // Delete document buttons
+        document.querySelectorAll('.delete-document').forEach(button => {
+            button.addEventListener('click', function() {
+                const documentId = parseInt(this.getAttribute('data-id'));
+                if (confirm('Are you sure you want to delete this document?')) {
+                    deleteDocument(documentId);
+                }
+            });
+        });
+    }
+    
+    // Update pagination controls
+    function updatePagination() {
+        const totalPages = Math.ceil(totalDocuments / pageSize);
+        const pagination = document.getElementById('pagination');
+        
+        if (totalPages <= 1) {
+            pagination.classList.add('d-none');
+            return;
+        }
+        
+        pagination.classList.remove('d-none');
+        pagination.innerHTML = `
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" aria-label="Previous" data-page="${currentPage - 1}">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+        `;
+        
+        // Generate page links
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start page if we're near the end
+        if (endPage - startPage + 1 < maxVisiblePages) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // First page
+        if (startPage > 1) {
+            pagination.innerHTML += `
+                <li class="page-item">
+                    <a class="page-link" href="#" data-page="1">1</a>
+                </li>
+            `;
+            
+            if (startPage > 2) {
+                pagination.innerHTML += `
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">...</a>
+                    </li>
+                `;
+            }
+        }
+        
+        // Page numbers
+        for (let i = startPage; i <= endPage; i++) {
+            pagination.innerHTML += `
+                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>
+            `;
+        }
+        
+        // Last page
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                pagination.innerHTML += `
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">...</a>
+                    </li>
+                `;
+            }
+            
+            pagination.innerHTML += `
+                <li class="page-item">
+                    <a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>
+                </li>
+            `;
+        }
+        
+        pagination.innerHTML += `
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" aria-label="Next" data-page="${currentPage + 1}">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+        `;
+        
+        // Add event listeners to page links
+        document.querySelectorAll('#pagination .page-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = parseInt(this.getAttribute('data-page'));
+                if (page && page !== currentPage) {
+                    currentPage = page;
+                    loadDocuments();
+                }
+            });
+        });
+    }
+    
+    // Update batch button state
+    function updateBatchButton() {
+        const batchBtn = document.getElementById('batch-btn');
+        batchBtn.disabled = selectedDocuments.length === 0;
+    }
+    
+    // Show document modal
+    function showDocumentModal(documentId) {
+        // Find document
+        const document = documents.find(doc => doc.id === documentId);
+        if (!document) return;
+        
+        // Update modal content
+        document.getElementById('modal-document-id').textContent = document.id;
+        document.getElementById('modal-filename').textContent = document.filename;
+        document.getElementById('modal-document-type').textContent = formatDocumentType(document.document_type);
+        
+        const statusBadge = `<span class="status-badge status-${document.status}">${document.status}</span>`;
+        document.getElementById('modal-status').innerHTML = statusBadge;
+        
+        const validationBadge = document.is_valid ? 
+            '<span class="badge bg-success">Valid</span>' : 
+            '<span class="badge bg-danger">Invalid</span>';
+        document.getElementById('modal-validation').innerHTML = validationBadge;
+        
+        document.getElementById('modal-confidence').textContent = 
+            document.confidence_score ? `${Math.round(document.confidence_score * 100)}%` : 'N/A';
+        
+        document.getElementById('modal-upload-date').textContent = formatDate(document.upload_date);
+        document.getElementById('modal-processed-date').textContent = formatDate(document.processed_date) || 'Not processed';
+        
+        document.getElementById('modal-batch').textContent = document.batch_id ? 
+            `Batch #${document.batch_id}` : 'Not assigned';
+        
+        // Extracted data
+        if (document.extracted_data && Object.keys(document.extracted_data).length > 0) {
+            document.getElementById('modal-extracted-data').innerHTML = `
+                <pre><code>${JSON.stringify(document.extracted_data, null, 2)}</code></pre>
+            `;
+        } else {
+            document.getElementById('modal-extracted-data').innerHTML = `
+                <pre><code>No data extracted</code></pre>
+            `;
+        }
+        
+        // Download button
+        document.getElementById('modal-download-btn').href = `/api/documents/${document.id}/download`;
+        
+        // Process button
+        const processBtn = document.getElementById('modal-process-btn');
+        processBtn.disabled = document.status === 'processing';
+        processBtn.onclick = () => processDocument(document.id);
+        
+        // Fetch exceptions for this document
+        fetchDocumentExceptions(document.id);
+        
+        // Show modal
+        documentModal.show();
+    }
+    
+    // Fetch exceptions for document
+    function fetchDocumentExceptions(documentId) {
+        fetch(`/api/documents/${documentId}/exceptions`)
+            .then(response => response.json())
+            .then(data => {
+                const exceptions = data.exceptions || [];
+                const exceptionsContainer = document.getElementById('modal-exceptions');
+                
+                if (exceptions.length === 0) {
+                    exceptionsContainer.innerHTML = `
+                        <p class="text-center">No exceptions found</p>
+                    `;
+                    return;
+                }
+                
+                let html = '<div class="table-responsive"><table class="table table-sm table-hover">';
+                html += '<thead><tr><th>Type</th><th>Message</th><th>Severity</th><th>Status</th></tr></thead><tbody>';
+                
+                exceptions.forEach(exception => {
+                    const severityClass = `severity-${exception.severity}`;
+                    const statusClass = `status-${exception.status}`;
+                    
+                    html += `
+                        <tr class="${severityClass}">
+                            <td>${exception.exception_type}</td>
+                            <td>${exception.message}</td>
+                            <td><span class="badge bg-${getSeverityColor(exception.severity)}">${exception.severity}</span></td>
+                            <td><span class="status-badge ${statusClass}">${exception.status}</span></td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table></div>';
+                exceptionsContainer.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('modal-exceptions').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        Error loading exceptions: ${error.message}
+                    </div>
+                `;
+            });
+    }
+    
+    // Show batch creation modal
+    function showBatchModal() {
+        // Update selected documents list
+        const selectedDocumentsList = document.getElementById('selected-documents-list');
+        
+        if (selectedDocuments.length === 0) {
+            selectedDocumentsList.innerHTML = `
+                <li class="list-group-item text-center">No documents selected</li>
+            `;
+            return;
+        }
+        
+        selectedDocumentsList.innerHTML = '';
+        selectedDocuments.forEach(documentId => {
+            const document = documents.find(doc => doc.id === documentId);
+            if (document) {
+                selectedDocumentsList.innerHTML += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        ${document.filename}
+                        <span class="badge bg-primary rounded-pill">${formatDocumentType(document.document_type)}</span>
+                    </li>
+                `;
+            }
+        });
+        
+        // Generate default batch name
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        document.getElementById('batchName').value = `Batch_${timestamp}`;
+        
+        // Show modal
+        batchModal.show();
+    }
+    
+    // Create batch
+    function createBatch() {
+        const batchName = document.getElementById('batchName').value;
+        
+        if (!batchName) {
+            showToast('Batch name is required', 'danger');
+            return;
+        }
+        
+        if (selectedDocuments.length === 0) {
+            showToast('No documents selected', 'danger');
+            return;
+        }
+        
+        // Disable button and show loading
+        const createBatchBtn = document.getElementById('create-batch-btn');
+        createBatchBtn.disabled = true;
+        createBatchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+        
+        // Create batch
+        fetch('/api/batches', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: batchName,
+                document_ids: selectedDocuments
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Batch created successfully', 'success');
+                    batchModal.hide();
+                    
+                    // Reset selected documents
+                    selectedDocuments = [];
+                    updateBatchButton();
+                    
+                    // Reload documents
+                    loadDocuments();
+                } else {
+                    showToast(data.message || 'Failed to create batch', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error creating batch', 'danger');
+            })
+            .finally(() => {
+                // Reset button
+                createBatchBtn.disabled = false;
+                createBatchBtn.innerHTML = 'Create Batch';
+            });
+    }
+    
+    // Process document
+    function processDocument(documentId) {
+        // Disable button and show loading
+        const processBtn = document.getElementById('modal-process-btn');
+        processBtn.disabled = true;
+        processBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+        
+        // Process document
+        fetch(`/api/process/${documentId}`, {
+            method: 'POST'
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Document processed successfully', 'success');
+                    
+                    // Close modal
+                    documentModal.hide();
+                    
+                    // Reload documents
+                    loadDocuments();
+                } else {
+                    showToast(data.message || 'Failed to process document', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error processing document', 'danger');
+            })
+            .finally(() => {
+                // Reset button
+                processBtn.disabled = false;
+                processBtn.innerHTML = '<i class="bi bi-play"></i> Process';
+            });
+    }
+    
+    // Delete document
+    function deleteDocument(documentId) {
+        // Disable all delete buttons
+        document.querySelectorAll('.delete-document').forEach(button => {
+            button.disabled = true;
+        });
+        
+        // Delete document
+        fetch(`/api/documents/${documentId}`, {
+            method: 'DELETE'
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Document deleted successfully', 'success');
+                    
+                    // Remove document from selected documents
+                    selectedDocuments = selectedDocuments.filter(id => id !== documentId);
+                    updateBatchButton();
+                    
+                    // Reload documents
+                    loadDocuments();
+                } else {
+                    showToast(data.message || 'Failed to delete document', 'danger');
+                    
+                    // Re-enable delete buttons
+                    document.querySelectorAll('.delete-document').forEach(button => {
+                        button.disabled = false;
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error deleting document', 'danger');
+                
+                // Re-enable delete buttons
+                document.querySelectorAll('.delete-document').forEach(button => {
+                    button.disabled = false;
+                });
+            });
+    }
+    
+    // Get severity color
+    function getSeverityColor(severity) {
+        switch (severity) {
+            case 'info':
+                return 'info';
+            case 'warning':
+                return 'warning';
+            case 'error':
+                return 'danger';
+            default:
+                return 'secondary';
+        }
+    }
+    
+    // Format document type
+    function formatDocumentType(type) {
+        if (!type) return 'Unknown';
+        
+        // Convert snake_case to Title Case
+        return type
+            .replace(/_/g, ' ')
+            .replace(/\w\S*/g, text => text.charAt(0).toUpperCase() + text.substr(1).toLowerCase());
+    }
+    
+    // Format date
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            return dateString;
+        }
+    }
+    
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        // Check if toast container exists, if not create it
+        let toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            document.body.appendChild(toastContainer);
+        }
+        
+        // Create toast element
+        const toastId = `toast-${Date.now()}`;
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.setAttribute('id', toastId);
+        
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // Add toast to container
+        toastContainer.appendChild(toast);
+        
+        // Initialize and show toast
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: true,
+            delay: 5000
+        });
+        bsToast.show();
+        
+        // Remove toast after it's hidden
+        toast.addEventListener('hidden.bs.toast', function() {
+            this.remove();
+        });
+    }
