@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Documents - Intelligent Document Processing System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Upload Documents</h1>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Upload Insurance Documents</h5>
+                </div>
+                <div class="card-body">
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <label for="document_type" class="form-label">Document Type</label>
+                            <select class="form-select" id="document_type" name="document_type" required>
+                                <option value="" selected disabled>Select document type</option>
+                                <option value="auto">Auto-detect</option>
+                                <option value="claim">Insurance Claim</option>
+                                <option value="agency_services">Agency Services</option>
+                                <option value="cancellation">Policy Cancellation</option>
+                                <option value="mortgage_change">Mortgage Change</option>
+                                <option value="payment">Payment</option>
+                            </select>
+                            <div class="form-text">Select the type of document you are uploading or choose Auto-detect.</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="file" class="form-label required">Document File</label>
+                            <div class="file-upload-container" id="dropzone">
+                                <input type="file" class="form-control visually-hidden" id="file" name="file" accept=".pdf,.tiff,.tif" required>
+                                <div class="file-upload-content text-center">
+                                    <i class="bi bi-cloud-arrow-up display-1 text-primary mb-3"></i>
+                                    <h5>Drag and drop files here</h5>
+                                    <p class="text-muted mb-3">or</p>
+                                    <button type="button" class="btn btn-primary" id="browse-button">Browse Files</button>
+                                    <p class="mt-3 text-muted small">PDF and TIFF files are accepted.</p>
+                                </div>
+                                <div class="selected-file mt-3 d-none">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-file-earmark-pdf text-danger me-2 fs-4"></i>
+                                        <div class="flex-grow-1">
+                                            <p class="mb-0 selected-filename">No file selected</p>
+                                            <small class="text-muted selected-filesize">0 KB</small>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-file">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Processing Options</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoProcess" name="autoProcess" checked>
+                                <label class="form-check-label" for="autoProcess">
+                                    Automatically process document after upload
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="addToBatch" name="addToBatch">
+                                <label class="form-check-label" for="addToBatch">
+                                    Add to batch after processing
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div id="batch-selection" class="mb-4 d-none">
+                            <label for="batch_id" class="form-label">Select Batch</label>
+                            <select class="form-select" id="batch_id" name="batch_id">
+                                <option value="" selected>Create new batch</option>
+                                <!-- Batches will be populated via JavaScript -->
+                            </select>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="upload-button" disabled>Upload Document</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Upload Instructions</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Supported File Types</h6>
+                    <p>Currently, only PDF files are supported for document processing.</p>
+                    
+                    <h6>Document Types</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-file-earmark-text text-danger me-2"></i> <strong>Insurance Claim</strong> - Claim forms, loss reports</li>
+                        <li><i class="bi bi-file-earmark-text text-primary me-2"></i> <strong>Agency Services</strong> - Agent change requests</li>
+                        <li><i class="bi bi-file-earmark-text text-warning me-2"></i> <strong>Policy Cancellation</strong> - Cancellation notices</li>
+                        <li><i class="bi bi-file-earmark-text text-success me-2"></i> <strong>Mortgage Change</strong> - Updates to mortgage info</li>
+                        <li><i class="bi bi-file-earmark-text text-info me-2"></i> <strong>Payment</strong> - Premium payments, checks</li>
+                    </ul>
+                    
+                    <h6>Processing</h6>
+                    <p>After upload, documents are processed to extract key information like policy numbers, dates, and amounts.</p>
+                    
+                    <h6>Maximum File Size</h6>
+                    <p>The maximum file size is 16MB per document.</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recently Uploaded</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush" id="recent-uploads">
+                        <li class="list-group-item text-center">No recent uploads</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file');
+        const browseButton = document.getElementById('browse-button');
+        const selectedFile = document.querySelector('.selected-file');
+        const selectedFilename = document.querySelector('.selected-filename');
+        const selectedFilesize = document.querySelector('.selected-filesize');
+        const removeFileButton = document.querySelector('.remove-file');
+        const uploadButton = document.getElementById('upload-button');
+        const addToBatchCheckbox = document.getElementById('addToBatch');
+        const batchSelection = document.getElementById('batch-selection');
+        const uploadForm = document.getElementById('upload-form');
+        
+        // Browse button click handler
+        browseButton.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // File input change handler
+        fileInput.addEventListener('change', function() {
+            handleFileSelection(this.files);
+        });
+        
+        // Drag and drop handlers
+        dropzone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', function() {
+            dropzone.classList.remove('dragover');
+        });
+        
+        dropzone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            handleFileSelection(e.dataTransfer.files);
+        });
+        
+        // Remove file button click handler
+        removeFileButton.addEventListener('click', function() {
+            fileInput.value = '';
+            selectedFile.classList.add('d-none');
+            uploadButton.disabled = true;
+        });
+        
+        // Add to batch checkbox change handler
+        addToBatchCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                batchSelection.classList.remove('d-none');
+                fetchBatches();
+            } else {
+                batchSelection.classList.add('d-none');
+            }
+        });
+        
+        // Form submit handler
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadDocument();
+        });
+        
+        // Handle file selection
+        function handleFileSelection(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                
+                // Check if file is a PDF or TIFF
+                if (file.type !== 'application/pdf' && 
+                    file.type !== 'image/tiff' && 
+                    file.type !== 'image/tif' && 
+                    !file.name.toLowerCase().endsWith('.pdf') && 
+                    !file.name.toLowerCase().endsWith('.tiff') && 
+                    !file.name.toLowerCase().endsWith('.tif')) {
+                    showToast('Only PDF and TIFF files are accepted', 'danger');
+                    return;
+                }
+                
+                // Update selected file info
+                selectedFilename.textContent = file.name;
+                selectedFilesize.textContent = formatFileSize(file.size);
+                selectedFile.classList.remove('d-none');
+                
+                // Enable upload button
+                uploadButton.disabled = false;
+            }
+        }
+        
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Fetch batches for dropdown
+        function fetchBatches() {
+            fetch('/api/batches')
+                .then(response => response.json())
+                .then(data => {
+                    const batchSelect = document.getElementById('batch_id');
+                    
+                    // Clear existing options except first
+                    while (batchSelect.options.length > 1) {
+                        batchSelect.remove(1);
+                    }
+                    
+                    // Add batches to dropdown
+                    if (data.batches && data.batches.length > 0) {
+                        data.batches.forEach(batch => {
+                            const option = document.createElement('option');
+                            option.value = batch.id;
+                            option.textContent = `${batch.name} (${batch.document_count} docs)`;
+                            batchSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching batches:', error);
+                });
+        }
+        
+        // Upload document
+        function uploadDocument() {
+            const formData = new FormData(uploadForm);
+            
+            // Show loading indicator
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+            
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Document uploaded successfully', 'success');
+                    
+                    // Reset form
+                    uploadForm.reset();
+                    selectedFile.classList.add('d-none');
+                    
+                    // If auto-process is checked, process the document
+                    if (document.getElementById('autoProcess').checked) {
+                        processDocument(data.document_id);
+                    } else {
+                        // Reset button
+                        uploadButton.disabled = true;
+                        uploadButton.innerHTML = 'Upload Document';
+                        
+                        // Redirect to documents page
+                        setTimeout(() => {
+                            window.location.href = '/documents';
+                        }, 1000);
+                    }
+                } else {
+                    showToast(data.message || 'Upload failed', 'danger');
+                    uploadButton.disabled = false;
+                    uploadButton.innerHTML = 'Upload Document';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error uploading document', 'danger');
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = 'Upload Document';
+            });
+        }
+        
+        // Process document
+        function processDocument(documentId) {
+            showToast('Processing document...', 'info');
+            
+            fetch(`/api/process/${documentId}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Document processed successfully', 'success');
+                    
+                    // If add to batch is checked, add document to batch
+                    if (document.getElementById('addToBatch').checked) {
+                        const batchId = document.getElementById('batch_id').value;
+                        if (batchId) {
+                            addDocumentToBatch(documentId, batchId);
+                        } else {
+                            createBatchWithDocument(documentId);
+                        }
+                    } else {
+                        // Reset button
+                        uploadButton.disabled = true;
+                        uploadButton.innerHTML = 'Upload Document';
+                        
+                        // Redirect to documents page
+                        setTimeout(() => {
+                            window.location.href = '/documents';
+                        }, 1000);
+                    }
+                } else {
+                    showToast(data.message || 'Processing failed', 'danger');
+                    uploadButton.disabled = false;
+                    uploadButton.innerHTML = 'Upload Document';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error processing document', 'danger');
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = 'Upload Document';
+            });
+        }
+        
+        // Add document to batch
+        function addDocumentToBatch(documentId, batchId) {
+            showToast('Adding document to batch...', 'info');
+            
+            fetch(`/api/batches/${batchId}/add-documents`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    document_ids: [documentId]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Document added to batch successfully', 'success');
+                    
+                    // Reset button
+                    uploadButton.disabled = true;
+                    uploadButton.innerHTML = 'Upload Document';
+                    
+                    // Redirect to batches page
+                    setTimeout(() => {
+                        window.location.href = '/batches';
+                    }, 1000);
+                } else {
+                    showToast(data.message || 'Failed to add document to batch', 'danger');
+                    uploadButton.disabled = false;
+                    uploadButton.innerHTML = 'Upload Document';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error adding document to batch', 'danger');
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = 'Upload Document';
+            });
+        }
+        
+        // Create batch with document
+        function createBatchWithDocument(documentId) {
+            showToast('Creating new batch...', 'info');
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const batchName = `Batch_${timestamp}`;
+            
+            fetch('/api/batches', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: batchName,
+                    document_ids: [documentId]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('New batch created successfully', 'success');
+                    
+                    // Reset button
+                    uploadButton.disabled = true;
+                    uploadButton.innerHTML = 'Upload Document';
+                    
+                    // Redirect to batches page
+                    setTimeout(() => {
+                        window.location.href = '/batches';
+                    }, 1000);
+                } else {
+                    showToast(data.message || 'Failed to create batch', 'danger');
+                    uploadButton.disabled = false;
+                    uploadButton.innerHTML = 'Upload Document';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error creating batch', 'danger');
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = 'Upload Document';
+            });
+        }
+        
+        // Get recently uploaded documents
+        function getRecentUploads() {
+            fetch('/api/documents?limit=5')
+                .then(response => response.json())
+                .then(data => {
+                    const recentUploads = document.getElementById('recent-uploads');
+                    
+                    if (data.documents && data.documents.length > 0) {
+                        recentUploads.innerHTML = '';
+                        data.documents.forEach(doc => {
+                            const statusClass = `status-${doc.status}`;
+                            recentUploads.innerHTML += `
+                                <li class="list-group-item">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-file-earmark-text me-2"></i>
+                                        <div class="flex-grow-1">
+                                            <p class="mb-0">${doc.filename}</p>
+                                            <small class="text-muted">${formatDocumentType(doc.document_type)}</small>
+                                        </div>
+                                        <span class="status-badge ${statusClass}">${doc.status}</span>
+                                    </div>
+                                </li>
+                            `;
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching recent uploads:', error);
+                });
+        }
+        
+        // Initialize page
+        getRecentUploads();
+    });
+</script>
+{% endblock %}

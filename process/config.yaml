@@ -1,0 +1,92 @@
+# Intelligent Document Processing System Configuration
+
+# Environment settings
+environment: development  # Options: development, testing, production
+
+# Application settings
+application:
+  name: "Intelligent Document Processing System"
+  version: "1.0.0"
+  debug: true  # Set to false in production
+  secret_key: "taurus-idp-secret-key-change-in-production"
+  allowed_extensions:
+    - pdf
+
+# Server settings
+server:
+  host: "0.0.0.0"
+  port: 5000
+  workers: 4  # For Gunicorn in production
+
+# Database settings
+database:
+  # SQLite configuration (default)
+  sqlite:
+    path: "data.sqlite"
+  
+  # PostgreSQL configuration (uncomment for production)
+  # postgres:
+  #   host: "localhost"
+  #   port: 5432
+  #   name: "idp_db"
+  #   user: "idp_user"
+  #   password: "idp_password"
+
+# File storage settings
+storage:
+  upload_folder: "data/raw"
+  processed_folder: "data/processed"
+  failed_folder: "data/failed"
+  batches_folder: "data/batches"
+  exported_folder: "data/exported"
+  max_content_length: 16777216  # 16MB in bytes
+
+# OCR and AI settings
+ocr:
+  engine: "tesseract"  # Options: tesseract, azure, google
+  tesseract:
+    path: "/usr/bin/tesseract"  # Update with your path
+    config: "--psm 3 --oem 3"
+  # Azure OCR settings (uncomment if using Azure)
+  # azure:
+  #   endpoint: "https://your-endpoint.cognitiveservices.azure.com/"
+  #   subscription_key: "your-subscription-key"
+  # Google OCR settings (uncomment if using Google)
+  # google:
+  #   credentials_file: "path/to/google-credentials.json"
+
+# FTP settings for batch export
+ftp:
+  host: "ftp.example.com"
+  user: "username"
+  pass: "password"
+  dir: "/upload"
+  use_tls: true
+  port: 21
+
+# Document processing settings
+processing:
+  max_threads: 4
+  timeout: 300  # seconds
+  auto_process: false  # Whether to automatically process documents after upload
+
+# Batch processing settings
+batch:
+  max_documents: 100  # Maximum number of documents per batch
+  auto_validate: false  # Whether to automatically validate batches
+
+# Logging settings
+logging:
+  level: "DEBUG"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"
+  max_size: 10485760  # 10MB in bytes
+  backup_count: 5
+
+# Web interface settings
+ui:
+  theme: "light"  # Options: light, dark
+  items_per_page: 10
+  date_format: "%m/%d/%Y"
+  datetime_format: "%m/%d/%Y %H:%M:%S"
+  currency_symbol: "$"
